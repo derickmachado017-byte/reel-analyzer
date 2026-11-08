@@ -2,30 +2,28 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#090b12"><meta name="description" content="Abra Reels públicos e extraia quadros de vídeos para análise.">
+<meta name="theme-color" content="#090b12"><meta name="description" content="Extraia quadros de vídeos autorizados para análise.">
 <title>ReelAnalyzer</title><link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <main class="shell">
 <header><a class="brand" href="#"><b>R</b> ReelAnalyzer</a><span class="tag">BETA</span></header>
-<section class="hero"><p class="eyebrow">ANÁLISE DE VÍDEOS</p><h1>Entenda qualquer Reel.<br><span>Sem complicação.</span></h1><p class="muted">Cole um link público para tentar abrir o Reel ou envie um vídeo para extrair imagens dos principais momentos.</p></section>
+<section class="hero"><p class="eyebrow">ANÁLISE DE VÍDEOS</p><h1>Entenda seus vídeos.<br><span>Sem complicação.</span></h1><p class="muted">Use um link direto de arquivo de vídeo ou selecione um vídeo do seu dispositivo. Extraia quadros e envie o painel ao ChatGPT para análise.</p></section>
 <section class="panel">
-<div class="heading"><span>01</span><div><h2>Abrir pelo link</h2><p class="muted">Player oficial incorporado do Instagram.</p></div></div>
-<form id="reel-form"><input id="reel-url" type="url" placeholder="https://www.instagram.com/reel/..." required><button>Abrir Reel ↗</button></form>
-<p id="link-status" class="status" aria-live="polite">Cole um link público de Reel.</p>
-<div id="embed-wrap" class="embed hidden"><iframe id="reel-embed" title="Instagram Reel" allowfullscreen></iframe></div>
-<p class="small muted">O Instagram pode bloquear incorporações ou exigir login. O ReelAnalyzer não contorna essas restrições.</p>
+<div class="heading"><span>01</span><div><h2>Carregar por link direto</h2><p class="muted">Use um endereço que abra o arquivo de vídeo, não uma página de publicação.</p></div></div>
+<form id="direct-form"><input id="direct-url" type="url" placeholder="https://exemplo.com/video.mp4" required><button type="submit">Carregar vídeo ↗</button></form>
+<p id="direct-status" class="status" aria-live="polite">Formatos comuns: MP4 e WebM. O servidor do vídeo precisa permitir acesso pelo navegador (CORS).</p>
 </section>
 <section class="panel">
-<div class="heading"><span>02</span><div><h2>Extrair quadros de um vídeo</h2><p class="muted">O processamento acontece no seu navegador.</p></div></div>
+<div class="heading"><span>02</span><div><h2>Ou selecionar um vídeo</h2><p class="muted">O processamento acontece localmente no seu navegador.</p></div></div>
 <label class="upload" for="video-file"><b>＋ Escolher vídeo</b><small>Selecione um vídeo salvo no dispositivo.</small></label>
 <input id="video-file" class="hidden" type="file" accept="video/*">
 <p id="file-status" class="status" aria-live="polite">Nenhum vídeo selecionado.</p>
-<video id="video" class="video hidden" controls playsinline></video>
+<video id="video" class="video hidden" controls playsinline preload="metadata"></video>
 <div id="frame-controls" class="controls hidden"><label>Quantidade <select id="frame-count"><option>4</option><option selected>6</option><option>8</option><option>12</option></select></label><button id="extract-btn" type="button">Extrair quadros</button></div>
 <div id="frames" class="frames"></div><button id="download-btn" class="secondary hidden" type="button">Baixar painel de imagens</button>
 </section>
-<section class="note"><b>Como analisar com o ChatGPT</b><p>Baixe o painel de quadros e anexe a imagem nesta conversa. Você também pode enviar o próprio vídeo diretamente ao ChatGPT quando o recurso estiver disponível.</p><p class="small muted">Use apenas vídeos que você tem autorização para acessar e analisar. Nenhum vídeo é enviado a um servidor por esta página.</p></section>
+<section class="note"><b>Como analisar com o ChatGPT</b><p>Depois de extrair os quadros, baixe o painel JPG e anexe-o nesta conversa. Você também pode enviar o próprio vídeo diretamente ao ChatGPT quando o recurso estiver disponível.</p><p class="small muted">Limitação: links do Instagram normalmente apontam para uma página, não para o arquivo de vídeo. Esta versão não baixa Reels do Instagram. Links diretos também dependem das permissões CORS do servidor de origem. Não são enviados vídeos a um servidor pelo ReelAnalyzer.</p></section>
 <footer>ReelAnalyzer · Projeto experimental</footer>
 </main><script src="app.js"></script>
 </body></html>
