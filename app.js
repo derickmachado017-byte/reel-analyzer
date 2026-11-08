@@ -1,8 +1,173 @@
-const $=id=>document.getElementById(id);let objectUrl=null,shots=[];
-function embedUrl(value){let u;try{u=new URL(value)}catch{throw Error("Link inválido. Confira o endereço.")}if(!["instagram.com","www.instagram.com","m.instagram.com"].includes(u.hostname))throw Error("Use um endereço do instagram.com.");let m=u.pathname.match(/^\/(?:reel|reels|tv)\/([A-Za-z0-9_-]+)/);if(!m)throw Error("Não encontrei o código do Reel nesse link.");return "https://www.instagram.com/reel/"+m[1]+"/embed/"}
-$("reel-form").addEventListener("submit",e=>{e.preventDefault();try{$("reel-embed").src=embedUrl($("reel-url").value.trim());$("embed-wrap").classList.remove("hidden");$("link-status").textContent="Tentando abrir no player oficial do Instagram…"}catch(err){$("embed-wrap").classList.add("hidden");$("link-status").textContent=err.message}});
-$("video-file").addEventListener("change",()=>{let f=$("video-file").files[0];if(!f)return;if(!f.type.startsWith("video/")){$("file-status").textContent="Escolha um arquivo de vídeo.";return}if(objectUrl)URL.revokeObjectURL(objectUrl);objectUrl=URL.createObjectURL(f);$("video").src=objectUrl;$("video").classList.remove("hidden");$("frame-controls").classList.remove("hidden");$("frames").innerHTML="";shots=[];$("download-btn").classList.add("hidden");$("file-status").textContent=f.name+" · "+(f.size/1048576).toFixed(1)+" MB"});
-function seek(v,t){return new Promise((resolve,reject)=>{const done=()=>{clean();resolve()},fail=()=>{clean();reject(Error("Não foi possível ler este vídeo."))},clean=()=>{v.removeEventListener("seeked",done);v.removeEventListener("error",fail)};v.addEventListener("seeked",done,{once:true});v.addEventListener("error",fail,{once:true});v.currentTime=Math.min(t,Math.max(0,v.duration-.05))})}
-const stamp=t=>Math.floor(t/60)+":"+String(Math.floor(t%60)).padStart(2,"0");
-$("extract-btn").addEventListener("click",async()=>{let v=$("video");if(!v.src||!Number.isFinite(v.duration)||!v.videoWidth){$("file-status").textContent="Aguarde o vídeo carregar.";return}let n=Number($("frame-count").value),c=document.createElement("canvas"),ctx=c.getContext("2d"),scale=Math.min(1,640/v.videoWidth);c.width=Math.round(v.videoWidth*scale);c.height=Math.round(v.videoHeight*scale);shots=[];$("frames").innerHTML="";$("download-btn").classList.add("hidden");$("file-status").textContent="Extraindo quadros…";try{for(let i=0;i<n;i++){let t=v.duration*(i+.5)/n;await seek(v,t);ctx.drawImage(v,0,0,c.width,c.height);let data=c.toDataURL("image/jpeg",.86);shots.push({data,t});let card=document.createElement("div");card.className="frame";let img=document.createElement("img");img.src=data;img.alt="Quadro em "+stamp(t);let label=document.createElement("small");label.textContent=stamp(t);card.append(img,label);$("frames").append(card)}$("file-status").textContent=shots.length+" quadros extraídos. Baixe o painel para enviar ao ChatGPT.";$("download-btn").classList.remove("hidden")}catch(err){$("file-status").textContent=err.message}});
-$("download-btn").addEventListener("click",()=>{if(!shots.length)return;let cols=2,w=480,h=Math.round(w*($("video").videoHeight/$("video").videoWidth)),gap=24,rows=Math.ceil(shots.length/cols),c=document.createElement("canvas");c.width=cols*w+(cols+1)*gap;c.height=rows*(h+34)+(rows+1)*gap;let x=c.getContext("2d");x.fillStyle="#101521";x.fillRect(0,0,c.width,c.height);shots.forEach((s,i)=>{let im=new Image();im.onload=()=>{let px=gap+(i%cols)*(w+gap),py=gap+Math.floor(i/cols)*(h+34+gap);x.drawImage(im,px,py,w,h);x.fillStyle="#f4f6fb";x.font="16px system-ui";x.fillText(stamp(s.t),px,py+h+24);if(i===shots.length-1){let a=document.createElement("a");a.download="reelanalyzer-quadros.jpg";a.href=c.toDataURL("image/jpeg",.9);a.click()}};im.src=s.data})});
+const $ = id => document.getElementById(id);
+let objectUrl = null;
+let shots = [];
+
+function setStatus(message) {
+  $("file-status").textContent = message;
+}
+
+function resetFrames() {
+  shots = [];
+  $("frames").innerHTML = "";
+  $("download-btn").classList.add("hidden");
+}
+
+function prepareVideo(src, { remote = false, fileName = "" } = {}) {
+  const video = $("video");
+  resetFrames();
+  $("frame-controls").classList.add("hidden");
+  video.pause();
+  video.removeAttribute("src");
+  video.removeAttribute("crossorigin");
+  video.load();
+
+  if (remote) video.crossOrigin = "anonymous";
+
+  video.addEventListener("loadedmetadata", () => {
+    video.classList.remove("hidden");
+    $("frame-controls").classList.remove("hidden");
+    setStatus(remote
+      ? "Vídeo carregado. Você já pode extrair os quadros."
+      : fileName + " · " + (video.duration ? Math.round(video.duration) + " s" : "duração indisponível"));
+  }, { once: true });
+
+  video.addEventListener("error", () => {
+    setStatus(remote
+      ? "Não foi possível carregar esse endereço. Confira se ele aponta diretamente para um vídeo e se o servidor permite CORS."
+      : "Não foi possível abrir esse arquivo de vídeo.");
+  }, { once: true });
+
+  video.src = src;
+  video.load();
+}
+
+$("direct-form").addEventListener("submit", event => {
+  event.preventDefault();
+  let url;
+  try {
+    url = new URL($("direct-url").value.trim());
+    if (!["http:", "https:"].includes(url.protocol)) throw new Error();
+    if (["instagram.com", "www.instagram.com", "m.instagram.com"].includes(url.hostname)) {
+      $("direct-status").textContent = "Esse é um link de página do Instagram, não um link direto de arquivo de vídeo. Esta versão não extrai Reels do Instagram.";
+      return;
+    }
+  } catch {
+    $("direct-status").textContent = "Digite um endereço HTTP ou HTTPS válido.";
+    return;
+  }
+
+  $("direct-status").textContent = "Tentando carregar o arquivo de vídeo…";
+  if (objectUrl) {
+    URL.revokeObjectURL(objectUrl);
+    objectUrl = null;
+  }
+  prepareVideo(url.href, { remote: true });
+});
+
+$("video-file").addEventListener("change", () => {
+  const file = $("video-file").files[0];
+  if (!file) return;
+  if (!file.type.startsWith("video/")) {
+    setStatus("Escolha um arquivo de vídeo.");
+    return;
+  }
+  if (objectUrl) URL.revokeObjectURL(objectUrl);
+  objectUrl = URL.createObjectURL(file);
+  prepareVideo(objectUrl, { fileName: file.name });
+});
+
+function seek(video, time) {
+  return new Promise((resolve, reject) => {
+    const done = () => { clean(); resolve(); };
+    const fail = () => { clean(); reject(new Error("Não foi possível ler este vídeo.")); };
+    const clean = () => {
+      video.removeEventListener("seeked", done);
+      video.removeEventListener("error", fail);
+    };
+    video.addEventListener("seeked", done, { once: true });
+    video.addEventListener("error", fail, { once: true });
+    video.currentTime = Math.min(time, Math.max(0, video.duration - 0.05));
+  });
+}
+
+const stamp = time => Math.floor(time / 60) + ":" + String(Math.floor(time % 60)).padStart(2, "0");
+
+$("extract-btn").addEventListener("click", async () => {
+  const video = $("video");
+  if (!video.src || !Number.isFinite(video.duration) || !video.videoWidth) {
+    setStatus("Aguarde o vídeo carregar completamente.");
+    return;
+  }
+
+  const count = Number($("frame-count").value);
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  const scale = Math.min(1, 640 / video.videoWidth);
+  canvas.width = Math.round(video.videoWidth * scale);
+  canvas.height = Math.round(video.videoHeight * scale);
+  resetFrames();
+  setStatus("Extraindo quadros…");
+
+  try {
+    for (let i = 0; i < count; i++) {
+      const time = video.duration * (i + 0.5) / count;
+      await seek(video, time);
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const data = canvas.toDataURL("image/jpeg", 0.86);
+      shots.push({ data, time });
+      const card = document.createElement("div");
+      card.className = "frame";
+      const img = document.createElement("img");
+      img.src = data;
+      img.alt = "Quadro em " + stamp(time);
+      const label = document.createElement("small");
+      label.textContent = stamp(time);
+      card.append(img, label);
+      $("frames").append(card);
+    }
+    setStatus(shots.length + " quadros extraídos. Baixe o painel para enviar ao ChatGPT.");
+    $("download-btn").classList.remove("hidden");
+  } catch (error) {
+    resetFrames();
+    setStatus(error.name === "SecurityError"
+      ? "O servidor desse vídeo não autorizou a extração pelo navegador (CORS). Tente outro link ou selecione o arquivo no dispositivo."
+      : (error.message || "Não foi possível extrair os quadros."));
+  }
+});
+
+$("download-btn").addEventListener("click", () => {
+  if (!shots.length) return;
+  const video = $("video");
+  const columns = 2;
+  const width = 480;
+  const height = Math.round(width * (video.videoHeight / video.videoWidth));
+  const gap = 24;
+  const rows = Math.ceil(shots.length / columns);
+  const canvas = document.createElement("canvas");
+  canvas.width = columns * width + (columns + 1) * gap;
+  canvas.height = rows * (height + 34) + (rows + 1) * gap;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#101521";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  let loaded = 0;
+  shots.forEach((shot, index) => {
+    const img = new Image();
+    img.onload = () => {
+      const x = gap + (index % columns) * (width + gap);
+      const y = gap + Math.floor(index / columns) * (height + 34 + gap);
+      context.drawImage(img, x, y, width, height);
+      context.fillStyle = "#f4f6fb";
+      context.font = "16px system-ui";
+      context.fillText(stamp(shot.time), x, y + height + 24);
+      loaded++;
+      if (loaded === shots.length) {
+        const link = document.createElement("a");
+        link.download = "reelanalyzer-quadros.jpg";
+        link.href = canvas.toDataURL("image/jpeg", 0.9);
+        link.click();
+      }
+    };
+    img.src = shot.data;
+  });
+});
